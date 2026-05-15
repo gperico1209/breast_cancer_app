@@ -424,43 +424,69 @@ elif pagina == "Regressione Logistica":
 # WHAT IF
 # ======================================================
 
+# ======================================================
+# WHAT IF
+# ======================================================
+
 elif pagina == "What If":
 
-    st.title("Scenario What If")
+    st.title("🩺 Predittore di Sopravvivenza - Tumore al Seno (SEER)")
 
-    st.write("""
-    Modifica le variabili del paziente per simulare diversi scenari.
+    st.markdown("""
+    Modifica i parametri clinici nella barra laterale per simulare diversi scenari.
     """)
 
-    input_raw = {}
+    st.sidebar.header("📊 Inserisci Dati Paziente")
 
-    for col in X_raw.columns:
+    age = st.sidebar.slider("Età", min_value=30, max_value=90, value=50)
 
-        if df[col].dtype == "object":
+    t_stage = st.sidebar.selectbox(
+        "Stadio Tumore (T Stage)",
+        options=["T1", "T2", "T3", "T4"]
+    )
 
-            valori = sorted(df[col].astype(str).unique())
+    n_stage = st.sidebar.selectbox(
+        "Stadio Linfonodi (N Stage)",
+        options=["N1", "N2", "N3"]
+    )
 
-            input_raw[col] = st.selectbox(
-                col,
-                valori
-            )
+    estrogen = st.sidebar.selectbox(
+        "Recettori Estrogeni",
+        options=["Positive", "Negative"]
+    )
 
-        else:
+    tumor_size = st.sidebar.slider(
+        "Dimensione Tumore (mm)",
+        min_value=1,
+        max_value=100,
+        value=20
+    )
 
-            min_val = float(df[col].min())
-            max_val = float(df[col].max())
-            mean_val = float(df[col].mean())
+    nodes_pos = st.sidebar.slider(
+        "Linfonodi Positivi",
+        min_value=0,
+        max_value=40,
+        value=1
+    )
 
-            input_raw[col] = st.slider(
-                col,
-                min_value=min_val,
-                max_value=max_val,
-                value=mean_val
-            )
+    user_data = {
+        "Age": age,
+        "T Stage": t_stage,
+        "N Stage": n_stage,
+        "6th Stage": "IIA",
+        "differentiate": "Moderately differentiated",
+        "Grade": "2",
+        "A Stage": "Regional",
+        "Tumor Size": tumor_size,
+        "Estrogen Status": estrogen,
+        "Progesterone Status": "Positive",
+        "Regional Node Examined": 10,
+        "Reginol Node Positive": nodes_pos
+    }
 
-    input_df_raw = pd.DataFrame([input_raw])
+    df_user_raw = pd.DataFrame([user_data])
 
-    input_encoded = pd.get_dummies(input_df_raw)
+    input_encoded = pd.get_dummies(df_user_raw)
 
     input_encoded = input_encoded.reindex(
         columns=feature_names,
@@ -469,26 +495,54 @@ elif pagina == "What If":
 
     input_scaled = scaler.transform(input_encoded)
 
-    pred = log_model.predict(input_scaled)[0]
+    probabilita = log_model.predict_proba(input_scaled)[0]
 
-    prob = log_model.predict_proba(input_scaled)[0]
-
-    pred_label = target_encoder.inverse_transform([pred])[0]
-
-    st.subheader("Risultato previsione")
-
-    st.success(f"Classe predetta: {pred_label}")
+    classi = target_encoder.classes_
 
     prob_df = pd.DataFrame({
-        "Classe": target_encoder.classes_,
-        "Probabilità": prob
+        "Classe": classi,
+        "Probabilità": probabilita
     })
+
+    st.divider()
+
+    st.subheader("Risultato Stimato")
+
+    if "Alive" in classi:
+        prob_vivo = prob_df.loc[
+            prob_df["Classe"] == "Alive",
+            "Probabilità"
+        ].values[0] * 100
+    else:
+        prob_vivo = probabilita.max() * 100
+
+    if prob_vivo > 50:
+        st.success("### 🎉 Prognosi Favorevole: Alive")
+        st.metric(
+            label="Probabilità di Sopravvivenza Stimata",
+            value=f"{prob_vivo:.1f}%"
+        )
+    else:
+        st.error("### ⚠️ Rischio Elevato: Dead")
+        st.metric(
+            label="Probabilità di Sopravvivenza Stimata",
+            value=f"{prob_vivo:.1f}%",
+            delta="- Rischio Critico",
+            delta_color="inverse"
+        )
+
+    st.progress(int(prob_vivo))
+
+    st.subheader("Probabilità per classe")
+
+    prob_df["Probabilità"] = prob_df["Probabilità"] * 100
 
     st.dataframe(prob_df)
 
-    st.write("""
-    Lo scenario what-if permette di osservare come cambia la previsione
-    modificando le caratteristiche cliniche del paziente.
+    st.info("""
+    💡 Prova a cambiare lo Stadio dei Linfonodi, i Recettori Estrogeni,
+    la Dimensione del Tumore o il numero di Linfonodi Positivi per osservare
+    come cambia la probabilità di sopravvivenza in tempo reale.
     """)
 
 
