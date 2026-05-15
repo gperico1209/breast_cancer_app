@@ -54,7 +54,7 @@ df_model = df_model.dropna()
 
 
 # ======================================================
-# ENCODING ORDINALE PER VARIABILI CLINICHE
+# ENCODING ORDINALE
 # ======================================================
 
 t_stage_map = {
@@ -130,7 +130,7 @@ X_test_scaled = scaler.transform(X_test)
 
 
 # ======================================================
-# MODELLO REGRESSIONE LOGISTICA
+# REGRESSIONE LOGISTICA
 # ======================================================
 
 log_model = LogisticRegression(
@@ -202,18 +202,9 @@ if pagina == "Home":
     st.subheader("Scelta metodologica")
 
     st.write("""
-    In questa versione del modello sono state mantenute le variabili cliniche principali:
-
-    - Age;
-    - T Stage;
-    - N Stage;
-    - Grade;
-    - Estrogen Status;
-    - Progesterone Status;
-    - Reginol Node Positive.
-
-    Le variabili **T Stage**, **N Stage** e **Grade** sono state trasformate con
-    encoding ordinale, perché rappresentano livelli progressivi di gravità clinica.
+    Le variabili **T Stage**, **N Stage** e **Grade** sono state trasformate
+    tramite encoding ordinale, perché rappresentano livelli progressivi
+    di gravità clinica.
 
     In questo modo il modello interpreta correttamente che:
 
@@ -287,34 +278,12 @@ elif pagina == "Variabili utilizzate":
     st.subheader("Encoding applicato")
 
     st.write("""
-    Per evitare che il modello tratti variabili ordinate come semplici categorie casuali,
-    sono state codificate manualmente:
-
     - T1 = 1, T2 = 2, T3 = 3, T4 = 4;
     - N1 = 1, N2 = 2, N3 = 3;
     - Grade 1 = 1, Grade 2 = 2, Grade 3 = 3, Grade 4 = 4.
 
-    Le variabili ormonali, invece, sono state trasformate tramite one-hot encoding.
+    Le variabili ormonali sono invece trasformate in variabili dummy.
     """)
-
-    st.subheader("Variabili escluse")
-
-    variabili_escluse = pd.DataFrame({
-        "Variabile esclusa": [
-            "Tumor Size",
-            "6th Stage",
-            "A Stage",
-            "differentiate"
-        ],
-        "Motivo esclusione": [
-            "Ridondante con T Stage.",
-            "Non inserita per ora, perché riassume informazioni già contenute in T Stage e N Stage.",
-            "Troppo generale rispetto alle altre variabili di stadio.",
-            "Ridondante con Grade."
-        ]
-    })
-
-    st.dataframe(variabili_escluse)
 
 
 # ======================================================
@@ -387,8 +356,7 @@ elif pagina == "Correlazioni":
 
     st.write("""
     La matrice di correlazione permette di osservare se alcune variabili sono
-    fortemente legate tra loro. Una correlazione elevata può indicare ridondanza
-    informativa o multicollinearità.
+    fortemente legate tra loro.
     """)
 
 
@@ -399,11 +367,6 @@ elif pagina == "Correlazioni":
 elif pagina == "Regressione Logistica":
 
     st.title("Regressione Logistica")
-
-    st.write("""
-    La regressione logistica è stata utilizzata per prevedere lo stato finale
-    del paziente: **Alive** oppure **Dead**.
-    """)
 
     st.subheader("Accuracy del modello")
 
@@ -419,13 +382,7 @@ elif pagina == "Regressione Logistica":
 
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            ax.text(
-                j,
-                i,
-                cm[i, j],
-                ha="center",
-                va="center"
-            )
+            ax.text(j, i, cm[i, j], ha="center", va="center")
 
     ax.set_xlabel("Predetto")
     ax.set_ylabel("Reale")
@@ -472,14 +429,6 @@ elif pagina == "Regressione Logistica":
 
     st.pyplot(fig)
 
-    st.write("""
-    Il peso delle variabili indica quanto ogni caratteristica influenza
-    la previsione del modello.
-
-    L’importanza assoluta indica quali variabili pesano di più,
-    indipendentemente dalla direzione dell’effetto.
-    """)
-
     st.subheader("Predizioni dettagliate")
 
     risultati = X_test.copy()
@@ -510,8 +459,8 @@ elif pagina == "What If":
 
     age = st.sidebar.slider(
         "Età",
-        min_value=int(df_model["Age"].min()),
-        max_value=int(df_model["Age"].max()),
+        min_value=18,
+        max_value=100,
         value=int(df_model["Age"].median())
     )
 
@@ -542,33 +491,39 @@ elif pagina == "What If":
 
     nodes_pos = st.sidebar.slider(
         "Reginol Node Positive",
-        min_value=int(df_model["Reginol Node Positive"].min()),
-        max_value=int(df_model["Reginol Node Positive"].max()),
+        min_value=0,
+        max_value=40,
         value=int(df_model["Reginol Node Positive"].median())
     )
 
-    user_data = {
+    # Base input numerico
+    input_encoded = pd.DataFrame([{
         "Age": age,
         "T Stage": t_stage_map[t_stage_label],
         "N Stage": n_stage_map[n_stage_label],
         "Grade": grade_map[grade_label],
-        "Estrogen Status": estrogen,
-        "Progesterone Status": progesterone,
         "Reginol Node Positive": nodes_pos
-    }
+    }])
 
-    input_df_raw = pd.DataFrame([user_data])
+    # Crea tutte le colonne mancanti
+    for col in feature_names:
+        if col not in input_encoded.columns:
+            input_encoded[col] = 0
 
-    input_encoded = pd.get_dummies(
-        input_df_raw,
-        columns=["Estrogen Status", "Progesterone Status"],
-        drop_first=True
-    )
+    # Encoding manuale Estrogen Status
+    for col in feature_names:
+        if col.startswith("Estrogen Status_"):
+            categoria = col.replace("Estrogen Status_", "")
+            input_encoded[col] = 1 if estrogen == categoria else 0
 
-    input_encoded = input_encoded.reindex(
-        columns=feature_names,
-        fill_value=0
-    )
+    # Encoding manuale Progesterone Status
+    for col in feature_names:
+        if col.startswith("Progesterone Status_"):
+            categoria = col.replace("Progesterone Status_", "")
+            input_encoded[col] = 1 if progesterone == categoria else 0
+
+    # Ordine corretto colonne
+    input_encoded = input_encoded[feature_names]
 
     input_scaled = scaler.transform(input_encoded)
 
@@ -605,8 +560,10 @@ elif pagina == "What If":
         st.progress(int(prob_alive))
 
     st.info("""
-    Grazie all’encoding ordinale, il modello interpreta correttamente il peggioramento
-    progressivo di T Stage, N Stage e Grade.
+    In questa versione lo scenario What If usa:
+    - encoding ordinale per T Stage, N Stage e Grade;
+    - encoding manuale per Estrogen Status e Progesterone Status;
+    - range età esteso da 18 a 100 anni.
     """)
 
 
@@ -622,13 +579,11 @@ elif pagina == "Conclusioni":
     Il modello finale utilizza una selezione di variabili cliniche rilevanti
     per prevedere lo stato finale del paziente.
 
-    In questa versione, T Stage, N Stage e Grade sono state codificate come variabili
-    ordinali. Questa scelta è più coerente dal punto di vista clinico, perché tali
-    variabili rappresentano livelli progressivi di gravità.
+    T Stage, N Stage e Grade sono state codificate come variabili ordinali,
+    perché rappresentano livelli progressivi di gravità.
 
-    Sono state escluse variabili potenzialmente ridondanti come Tumor Size,
-    6th Stage, A Stage e differentiate, in modo da rendere il modello più semplice
-    e interpretabile.
+    Le variabili ormonali sono state mantenute perché rappresentano informazioni
+    cliniche rilevanti nella valutazione della prognosi.
 
     La regressione logistica risulta adatta perché il problema è di classificazione:
     prevedere se il paziente appartiene alla classe Alive oppure Dead.
