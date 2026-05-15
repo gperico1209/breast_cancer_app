@@ -50,24 +50,40 @@ def prepare_model_data(df):
 
 df_model, encoders = prepare_model_data(df)
 
+target = "Status"
+
+if target in df_model.columns:
+
+    # Rimuove eventuali valori mancanti
+    df_model = df_model.dropna()
+
+    # Separazione features e target
+    X = df_model.drop(columns=[target])
+    y = df_model[target]
+
+    # Converte tutto in numerico
+    X = X.apply(pd.to_numeric)
+
+    # Train test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42
+    )
+
+    # Standardizzazione
+    scaler = StandardScaler()
+
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
 
 # =========================
 # MODELLO LOGISTICO
 # =========================
 
-target = "Status"
 
-if target in df_model.columns:
-    X = df_model.drop(target, axis=1)
-    y = df_model[target]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
 
     log_model = LogisticRegression(max_iter=5000)
     log_model.fit(X_train_scaled, y_train)
