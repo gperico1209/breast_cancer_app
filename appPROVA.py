@@ -572,7 +572,7 @@ elif pagina == "What If":
     pred = log_model.predict(input_scaled)[0]
     prob = log_model.predict_proba(input_scaled)[0]
 
-    
+    pred_label = target_encoder.inverse_transform([pred])[0]
 
     # Recupero sicuro degli indici delle classi
     classi = list(target_encoder.classes_)
