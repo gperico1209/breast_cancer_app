@@ -380,7 +380,7 @@ elif pagina == "Correlazioni":
     - +1 indicano forte correlazione positiva;
     - -1 indicano forte correlazione negativa;
     - 0 indicano assenza di correlazione lineare.
-    """))
+    """)
 
     st.write("""
     La matrice di correlazione permette di osservare se alcune variabili sono
