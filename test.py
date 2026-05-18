@@ -340,19 +340,47 @@ elif pagina == "Correlazioni":
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    im = ax.imshow(corr)
+    im = ax.imshow(corr, cmap="coolwarm")
 
+    # Etichette assi
     ax.set_xticks(np.arange(len(corr.columns)))
     ax.set_yticks(np.arange(len(corr.columns)))
 
     ax.set_xticklabels(corr.columns, rotation=90)
     ax.set_yticklabels(corr.columns)
 
+    # Aggiunge valori numerici dentro le celle
+    for i in range(len(corr.columns)):
+        for j in range(len(corr.columns)):
+
+            valore = round(corr.iloc[i, j], 2)
+
+            ax.text(
+                j,
+                i,
+                valore,
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=8
+            )
+
+    # Barra colori
     fig.colorbar(im)
 
     ax.set_title("Matrice di correlazione")
 
     st.pyplot(fig)
+
+    st.write("""
+    La matrice di correlazione mostra sia il colore sia il valore numerico
+    della correlazione tra le variabili.
+
+    Valori vicini a:
+    - +1 indicano forte correlazione positiva;
+    - -1 indicano forte correlazione negativa;
+    - 0 indicano assenza di correlazione lineare.
+    """))
 
     st.write("""
     La matrice di correlazione permette di osservare se alcune variabili sono
