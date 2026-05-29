@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -16,6 +15,96 @@ from sklearn.metrics import (
     auc,
     f1_score
 )
+
+
+# ======================================================
+# FUNZIONI GRAFICHE MATPLOTLIB - SOSTITUISCONO SEABORN
+# ======================================================
+
+def despine(ax):
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+
+def hist_percent(data, bins=20, ax=None, color=None):
+    data = pd.to_numeric(pd.Series(data), errors="coerce").dropna()
+    weights = np.ones(len(data)) * 100 / len(data) if len(data) > 0 else None
+    ax.hist(data, bins=bins, weights=weights, color=color, alpha=0.75, edgecolor="white")
+
+    # linea morbida semplice, senza scipy/seaborn
+    if len(data) > 1:
+        counts, bin_edges = np.histogram(data, bins=bins, weights=weights)
+        centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        if len(counts) >= 3:
+            smooth = np.convolve(counts, np.ones(3) / 3, mode="same")
+            ax.plot(centers, smooth, linewidth=2)
+
+
+def heatmap_matplotlib(matrix, ax=None, cmap="coolwarm", vmin=None, vmax=None, center=None,
+                       annot=True, fmt=".2f", xticklabels=None, yticklabels=None,
+                       cbar=True, annot_labels=None):
+    data = np.asarray(matrix)
+    im = ax.imshow(data, cmap=cmap, vmin=vmin, vmax=vmax)
+
+    if xticklabels is None:
+        xticklabels = getattr(matrix, "columns", range(data.shape[1]))
+    if yticklabels is None:
+        yticklabels = getattr(matrix, "index", range(data.shape[0]))
+
+    ax.set_xticks(np.arange(data.shape[1]))
+    ax.set_yticks(np.arange(data.shape[0]))
+    ax.set_xticklabels(xticklabels)
+    ax.set_yticklabels(yticklabels)
+
+    ax.set_xticks(np.arange(-.5, data.shape[1], 1), minor=True)
+    ax.set_yticks(np.arange(-.5, data.shape[0], 1), minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=0.5)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    if annot:
+        for i in range(data.shape[0]):
+            for j in range(data.shape[1]):
+                if annot_labels is not None:
+                    text = annot_labels[i, j]
+                else:
+                    text = format(data[i, j], fmt)
+                ax.text(j, i, text, ha="center", va="center", color="black", fontsize=9, fontweight="bold")
+
+    if cbar:
+        plt.colorbar(im, ax=ax, shrink=0.8)
+    return im
+
+
+def grouped_barplot_proportion(df_prop, x_col, hue_col, y_col, ax=None):
+    x_levels = list(df_prop[x_col].astype(str).unique())
+    hue_levels = list(df_prop[hue_col].astype(str).unique())
+    x = np.arange(len(x_levels))
+    width = 0.8 / max(len(hue_levels), 1)
+
+    for k, hue in enumerate(hue_levels):
+        vals = []
+        for xlev in x_levels:
+            subset = df_prop[(df_prop[x_col].astype(str) == xlev) & (df_prop[hue_col].astype(str) == hue)]
+            vals.append(float(subset[y_col].iloc[0]) if len(subset) else 0)
+        bars = ax.bar(x + (k - (len(hue_levels)-1)/2) * width, vals, width, label=hue)
+        for bar in bars:
+            if bar.get_height() > 0:
+                ax.annotate(f'{bar.get_height()*100:.1f}%',
+                            xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                            xytext=(0, 3), textcoords="offset points",
+                            ha='center', va='bottom', fontsize=9, fontweight='bold')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_levels)
+    return ax
+
+
+def boxplot_by_status(df_plot, target_col, y_col, ax=None):
+    clean = df_plot[[target_col, y_col]].dropna()
+    groups = list(clean[target_col].astype(str).unique())
+    data = [pd.to_numeric(clean.loc[clean[target_col].astype(str) == g, y_col], errors="coerce").dropna() for g in groups]
+    ax.boxplot(data, labels=groups, patch_artist=True)
+    return ax
 
 # ======================================================
 # CONFIGURAZIONE PAGINA
@@ -409,8 +498,6 @@ elif pagina == "Visualizzazioni":
 
     st.title("📊 Visualizzazioni dei Dati")
     
-    sns.set_theme(style="whitegrid", context="talk")
-
     st.subheader("Distribuzione Status")
 
     counts = df_model[target].value_counts()
@@ -431,7 +518,7 @@ elif pagina == "Visualizzazioni":
     ax.set_xlabel("Status", fontsize=12)
     ax.set_ylabel("Frequenza", fontsize=12)
     ax.set_title("Distribuzione Alive / Dead", fontweight='bold', fontsize=14)
-    sns.despine()
+    despine(ax)
     st.pyplot(fig)
 
     st.write("---") 
@@ -442,32 +529,32 @@ elif pagina == "Visualizzazioni":
 
     with col1:
         fig1, ax1 = plt.subplots(figsize=(5, 4.5))
-        sns.histplot(df['Age'], bins=20, kde=True, ax=ax1, color='skyblue', stat='percent')
+        hist_percent(df['Age'], bins=20, ax=ax1, color='skyblue')
         ax1.set_title('Distribuzione Età', fontweight='bold', fontsize=12)
         ax1.set_xlabel('Età', fontsize=10)
         ax1.set_ylabel('Percentuale (%)', fontsize=10)
         ax1.tick_params(labelsize=9)
-        sns.despine()
+        despine(ax)
         st.pyplot(fig1)
 
     with col2:
         fig2, ax2 = plt.subplots(figsize=(5, 4.5))
-        sns.histplot(df['Tumor Size'], bins=20, kde=True, ax=ax2, color='salmon', stat='percent')
+        hist_percent(df['Tumor Size'], bins=20, ax=ax2, color='salmon')
         ax2.set_title('Dimensione Tumore (mm)', fontweight='bold', fontsize=12)
         ax2.set_xlabel('Dimensione (mm)', fontsize=10)
         ax2.set_ylabel('Percentuale (%)', fontsize=10)
         ax2.tick_params(labelsize=9)
-        sns.despine()
+        despine(ax)
         st.pyplot(fig2)
 
     with col3:
         fig3, ax3 = plt.subplots(figsize=(5, 4.5))
-        sns.histplot(df['Survival Months'], bins=20, kde=True, ax=ax3, color='lightgreen', stat='percent')
+        hist_percent(df['Survival Months'], bins=20, ax=ax3, color='lightgreen')
         ax3.set_title('Mesi di Sopravvivenza', fontweight='bold', fontsize=12)
         ax3.set_xlabel('Mesi', fontsize=10)
         ax3.set_ylabel('Percentuale (%)', fontsize=10)
         ax3.tick_params(labelsize=9)
-        sns.despine()
+        despine(ax)
         st.pyplot(fig3)
 
     st.write("---")
@@ -500,7 +587,7 @@ elif pagina == "Visualizzazioni":
             ax.set_ylabel("Frequenza", fontsize=11)
             ax.set_title(f"Distribuzione {col}", fontweight='bold', fontsize=13)
             ax.tick_params(labelsize=10)
-            sns.despine()
+            despine(ax)
             st.pyplot(fig)
             
         with grid_col2:
@@ -524,7 +611,7 @@ elif pagina == "Visualizzazioni":
                 ax.set_ylabel("Frequenza", fontsize=11)
                 ax.set_title(f"Distribuzione {col}", fontweight='bold', fontsize=13)
                 ax.tick_params(labelsize=10)
-                sns.despine()
+                despine(ax)
                 st.pyplot(fig)
 
     st.write("---")
@@ -538,21 +625,14 @@ elif pagina == "Visualizzazioni":
             df_prop = df_model.groupby(col)[target].value_counts(normalize=True).rename("Proporzione").reset_index()
             
             fig, ax = plt.subplots(figsize=(6.5, 4.8))
-            bars = sns.barplot(data=df_prop, x=col, y="Proporzione", hue=target, ax=ax, palette=["#FF6B6B", "#4ECDC4"])
-            
-            for p in ax.patches:
-                if p.get_height() > 0: 
-                    ax.annotate(f'{p.get_height()*100:.1f}%',
-                                xy=(p.get_x() + p.get_width() / 2, p.get_height()),
-                                xytext=(0, 3), textcoords="offset points",
-                                ha='center', va='bottom', fontsize=9, fontweight='bold')
+            grouped_barplot_proportion(df_prop, col, target, "Proporzione", ax=ax)
             
             ax.set_xlabel(col, fontsize=11)
             ax.set_ylabel("Proporzione", fontsize=11)
             ax.set_title(f"Proporzione di Status per {col}", fontweight='bold', fontsize=12)
             ax.set_ylim(0, 1.1) 
             ax.legend(title="Stato", fontsize=9, title_fontsize=10)
-            sns.despine()
+            despine(ax)
             st.pyplot(fig)
             
         with grid_col2:
@@ -561,21 +641,14 @@ elif pagina == "Visualizzazioni":
                 df_prop = df_model.groupby(col)[target].value_counts(normalize=True).rename("Proporzione").reset_index()
                 
                 fig, ax = plt.subplots(figsize=(6.5, 4.8))
-                bars = sns.barplot(data=df_prop, x=col, y="Proporzione", hue=target, ax=ax, palette=["#FF6B6B", "#4ECDC4"])
-                
-                for p in ax.patches:
-                    if p.get_height() > 0:
-                        ax.annotate(f'{p.get_height()*100:.1f}%',
-                                    xy=(p.get_x() + p.get_width() / 2, p.get_height()),
-                                    xytext=(0, 3), textcoords="offset points",
-                                    ha='center', va='bottom', fontsize=9, fontweight='bold')
+                grouped_barplot_proportion(df_prop, col, target, "Proporzione", ax=ax)
                                     
                 ax.set_xlabel(col, fontsize=11)
                 ax.set_ylabel("Proporzione", fontsize=11)
                 ax.set_title(f"Proporzione di Status per {col}", fontweight='bold', fontsize=12)
                 ax.set_ylim(0, 1.1)
                 ax.legend(title="Stato", fontsize=9, title_fontsize=10)
-                sns.despine()
+                despine(ax)
                 st.pyplot(fig)
 
     st.write("---")
@@ -585,31 +658,31 @@ elif pagina == "Visualizzazioni":
     
     with col_num1:
         fig1, ax1 = plt.subplots(figsize=(5.5, 4.5))
-        sns.boxplot(data=df, x=target, y='Age', ax=ax1, palette=["#FF6B6B", "#4ECDC4"])
+        boxplot_by_status(df, target, 'Age', ax=ax1)
         ax1.set_title('Età vs Status', fontweight='bold', fontsize=11)
         ax1.set_xlabel('Status')
         ax1.set_ylabel('Età')
-        sns.despine()
+        despine(ax)
         st.pyplot(fig1)
         
     with col_num2:
         fig2, ax2 = plt.subplots(figsize=(5.5, 4.5))
-        sns.boxplot(data=df, x=target, y='Tumor Size', ax=ax2, palette=["#FF6B6B", "#4ECDC4"])
+        boxplot_by_status(df, target, 'Tumor Size', ax=ax2)
         ax2.set_title('Dimensione Tumore vs Status', fontweight='bold', fontsize=11)
         ax2.set_xlabel('Status')
         ax2.set_ylabel('Dimensione (mm)')
-        sns.despine()
+        despine(ax)
         st.pyplot(fig2)
         
     with col_num3:
         fig3, ax3 = plt.subplots(figsize=(5.5, 4.5))
         nome_colonna_nodi = 'Reginol Node Positive' 
         
-        sns.boxplot(data=df, x=target, y=nome_colonna_nodi, ax=ax3, palette=["#FF6B6B", "#4ECDC4"])
+        boxplot_by_status(df, target, nome_colonna_nodi, ax=ax3)
         ax3.set_title('Distribuzione di Nodi Positivi per Status', fontweight='bold', fontsize=11)
         ax3.set_xlabel('Status')
         ax3.set_ylabel('Regional Nodes Positive')
-        sns.despine()
+        despine(ax)
         st.pyplot(fig3)
 
 # ======================================================
@@ -624,18 +697,15 @@ elif pagina == "Correlazioni":
 
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    sns.heatmap(
-        corr, 
-        annot=True,            
-        fmt=".2f",             
-        cmap="coolwarm",       
-        vmin=-1, vmax=1,       
-        center=0,              
-        linewidths=0.5,        
-        linecolor='white',
-        cbar_kws={"shrink": 0.8}, 
+    heatmap_matplotlib(
+        corr,
         ax=ax,
-        annot_kws={"size": 10, "weight": "bold"} 
+        annot=True,
+        fmt=".2f",
+        cmap="coolwarm",
+        vmin=-1,
+        vmax=1,
+        cbar=True
     )
 
     plt.xticks(rotation=45, ha="right")
@@ -684,17 +754,15 @@ elif pagina == "Regressione Logistica":
             f"{fn}\n\nFN\n(Mancati)", 
             f"{tp}\n\nTP"
         ]).reshape(2, 2)
-
-        sns.heatmap(
-            cm, 
-            annot=labels,          
-            fmt="",             
-            cmap="Blues",        
-            cbar=True,          
-            linewidths=0.5,      
+        heatmap_matplotlib(
+            cm,
+            ax=ax1,
+            cmap="Blues",
+            annot=True,
+            annot_labels=labels,
             xticklabels=target_encoder.classes_,
             yticklabels=target_encoder.classes_,
-            ax=ax1
+            cbar=True
         )
 
         ax1.set_title("Confusion Matrix", fontweight='bold', pad=15)
@@ -714,7 +782,7 @@ elif pagina == "Regressione Logistica":
         
         ax2.set_title("Breakdown degli Errori e Successi", fontweight='bold', pad=15)
         ax2.set_ylabel("N° Pazienti")
-        sns.despine(left=False, bottom=False)
+        despine(ax2)
         
         for bar in bars:
             yval = bar.get_height()
@@ -794,15 +862,10 @@ elif pagina == "Regressione Logistica":
 
     fig5, ax5 = plt.subplots(figsize=(10, 6))
 
-    sns.barplot(
-        x="Peso",
-        y="Variabile",
-        data=top_importance,
-        palette="coolwarm",  
-        ax=ax5
-    )
+    ax5.barh(top_importance["Variabile"], top_importance["Peso"])
+    ax5.invert_yaxis()
 
-    sns.despine(left=True, bottom=True)          
+    despine(ax5)
     ax5.grid(axis='x', linestyle='--', alpha=0.5) 
     ax5.axvline(0, color='black', linewidth=1)    
 
@@ -849,17 +912,15 @@ elif pagina == "Random Forest":
             f"{fn}\n\nFN\n(Mancati)", 
             f"{tp}\n\nTP"
         ]).reshape(2, 2)
-
-        sns.heatmap(
-            cm_rf, 
-            annot=labels,          
-            fmt="",             
-            cmap="Greens",     
-            cbar=True,          
-            linewidths=0.5,      
+        heatmap_matplotlib(
+            cm_rf,
+            ax=ax1,
+            cmap="Greens",
+            annot=True,
+            annot_labels=labels,
             xticklabels=target_encoder.classes_,
             yticklabels=target_encoder.classes_,
-            ax=ax1
+            cbar=True
         )
 
         ax1.set_title("Confusion Matrix (RF)", fontweight='bold', pad=15)
@@ -879,7 +940,7 @@ elif pagina == "Random Forest":
         
         ax2.set_title("Breakdown degli Errori e Successi", fontweight='bold', pad=15)
         ax2.set_ylabel("N° Pazienti")
-        sns.despine(left=False, bottom=False)
+        despine(ax2)
         
         for bar in bars:
             yval = bar.get_height()
@@ -965,15 +1026,10 @@ elif pagina == "Random Forest":
 
     fig5, ax5 = plt.subplots(figsize=(10, 6))
 
-    sns.barplot(
-        x="Importanza",
-        y="Variabile",
-        data=top_importance_rf,
-        palette="viridis",  
-        ax=ax5
-    )
+    ax5.barh(top_importance_rf["Variabile"], top_importance_rf["Importanza"])
+    ax5.invert_yaxis()
 
-    sns.despine(left=True, bottom=True)          
+    despine(ax5)
     ax5.grid(axis='x', linestyle='--', alpha=0.5) 
 
     ax5.set_xlabel("Importanza (Gini / Diminuzione Impurità)", fontsize=11, fontweight="bold")
@@ -1065,7 +1121,7 @@ elif pagina == "Confronto Modelli":
     
     ax.legend(loc="lower right", fontsize=11)
     ax.grid(color='gray', linestyle='--', linewidth=0.5, alpha=0.3)
-    sns.despine()
+    despine(ax)
 
     st.pyplot(fig)
     
